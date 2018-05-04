@@ -1,0 +1,112 @@
+---
+title: "Nick Fly Script"
+author: "JReceveur"
+date: "October 24, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Analyzing Fly data
+#Step 1: Installing Rstudio and Loading Packages
+Install Rstudio from https://www.rstudio.com/products/rstudio/download/
+Once you open Rstudio, start a new project, then go File>New File>R script. It will open a new window on your screen where you can copy and paste code into so you don't have to keep retyping it. To run the code use the run button in the top right of the window or ctrl+enter.
+
+If you are starting for the first time copy the code below, remove the # and run it to install/update the packages you will need.
+
+```{r}
+#install.packages("ggplot2","vegan","plyr","dplyr","MASS","magrittr", "scales","grid","reshape2","phyloseq","randomForest","knitr","ape","lubridate")
+```
+
+#Once the packages are installed or updated
+You will now have to load the packages using the code below (remove the #s): You will have to run this code every time you start an R session
+
+```{r,message=FALSE,warning=FALSE}
+library(vegan)
+library(MASS)
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(magrittr)
+library(scales)
+library(grid)
+library(reshape2)
+library(phyloseq)
+library(randomForest)
+library(knitr)
+library(ape)
+
+```
+
+#Now you can import your sample data
+There are several ways you can import data into R. You can either open a browser to choose a file or directly import it, as long as you know its pathway (as defined by your computer)
+For example, the first two lines will have the same result. If you wish to easily find the pathway you can use the command file.choose() and after you select the file you want, R will give you the pathway. 
+```{r}
+
+#metadata=(file.choose(),header=TRUE)
+metadata=read.table("C:\\Users\\Joe Receveur\\Documents\\MSU data\\Fly data\\Meta10.24.txt",header=TRUE)
+#file.choose()
+```
+
+Here is the import step for the data so far, if you want to use the file.choose option, its written out below, just remove the #s
+``` {r import}
+matrix=read.table("C:\\Users\\Joe Receveur\\Documents\\MSU data\\Fly data\\Table10.24Other.txt",header=TRUE)
+metadata=read.table("C:\\Users\\Joe Receveur\\Documents\\MSU data\\Fly data\\Meta10.24.txt",header=TRUE)
+taxa=as.matrix(read.table("C:\\Users\\Joe Receveur\\Documents\\MSU data\\Fly data\\SpeciesNames10.24Other.txt"))
+
+#matrix=read.table(file.choose(),header=TRUE)
+#metadata=read.table(file.choose(),header=TRUE)
+#taxa=as.matrix(read.table(file.choose()))
+```
+
+#Merging the data together
+At the moment, the data is in three seperate files: metadata, species info, and table of count data. The next step is to put all those parts together into one R object, which is the step below.
+```{r datamerge}
+OTU=otu_table(matrix, taxa_are_rows=TRUE)
+TAX=tax_table(taxa)
+colnames(TAX)=("Species")
+sampdat=sample_data(metadata)
+sample_names(sampdat)=metadata$SampleID
+taxa_names(TAX)=row.names(OTU)
+physeq=phyloseq(OTU,TAX,sampdat)
+```
+
+If you type in the variable name (physeq), it will show you how many samples, variables, and species are in your file.
+``` {r}
+physeq
+```
+
+#Setting  defaults for making graphs
+Since graphs look better when they are consistant, the following code will set the default plotting theme, text size,remove gridlines, load a colorblind friendly color palette, and put your locations into the same order each time.
+``` {r}
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#000000","#CC79A7")
+
+theme_set(theme_bw(base_size = 18)+theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()))
+sample_data(physeq)$SiteLocation = factor(sample_data(physeq)$SiteLocation, levels = c("North_1km","North_10km","East_1km","East_10km","South_1km","South_10km","West_1km","West_10km"))
+
+```
+
+#Plotting total and relative abundances
+The next bit of code will produce two plots, a plot of total abundance, and a plot of relative abundance for each location.
+```{r}
+plot_bar(physeq, "SiteLocation","Abundance", "Species")+xlab("Location")+ylab("Total Abundance")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+facet_grid("Month~City",scales="free_x")+scale_fill_manual(values=cbPalette)
+RelativeAbu  = transform_sample_counts(physeq, function(x) x / sum(x) )
+plot_bar(RelativeAbu, "SiteLocation","Abundance", "Species")+xlab("Location")+ylab("Relative Abundance (%)")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+facet_grid("Month~City",scales="free_x")+scale_fill_manual(values=cbPalette)
+```
+
+#PCoA plot
+The following code will plot conducts a Principle Coordinate Analysis (PCoA) ordination so you can look at how different the whole communities are between sites.
+```{r}
+ord=ordinate(physeq,"PCoA", "jaccard")
+ordplot=plot_ordination(physeq, ord,"samples", color="City",shape="City",label="SiteLocation")+geom_point(size=4)+scale_colour_manual(values=cbPalette)+scale_fill_manual(values=cbPalette)
+ordplot+ stat_ellipse(type= "norm",geom = "polygon", alpha = 1/4, aes(fill = City)) #theme(legend.justification=c(1,0), legend.position=c(1,0))+
+```
+
+Session info
+```{r}
+sessionInfo()
+```
